@@ -3,8 +3,8 @@ use std::io::{BufRead, BufReader};
 
 fn main() {
     {
-        // Part A
-        let f = File::open("day1a.input.txt").expect("Unable to open file");
+        // Part 1
+        let f = File::open("input.txt").expect("Unable to open file");
         let f = BufReader::new(f);
         let mut sum = 0;
         for line in f.lines() {
@@ -14,11 +14,11 @@ fn main() {
             let idiv = (module_mass / 3) - 2;
             sum += idiv;
         }
-        println!("A: Sum is: {}", sum);
+        println!("Part 1: Sum is: {}", sum);
     }
     {
-        // Part B
-        let f = File::open("day1a.input.txt").expect("Unable to open file");
+        // Part 2
+        let f = File::open("input.txt").expect("Unable to open file");
         let f = BufReader::new(f);
         let mut sum = 0;
         for line in f.lines() {
@@ -33,7 +33,6 @@ fn main() {
                 if idiv <= 0 { break; }
             }
         }
-        println!("B: Sum is: {}", sum);
+        println!("Part 2: Sum is: {}", sum);
     }
-
 }
