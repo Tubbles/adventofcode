@@ -1,104 +1,16 @@
+use float_cmp::approx_eq;
 use std::collections::BTreeSet;
 use std::fs::File;
+use std::io::Write;
 use std::io::{BufRead, BufReader};
 
-pub const PRINT_DEBUG: bool = true;
+pub const PRINT_DEBUG: bool = false;
 
+#[derive(Debug)]
 struct Point {
     x: usize,
     y: usize,
 }
-
-// Returns the minimum resolution required for integer approximation of floats for correct
-// angle calculations
-// Calculate by taking the angle delta between the diagonal and the diagonal + 1 in
-// either direction, and take the half of that angle due to shannon.
-// The actual resolution is expressed in "number of such circle segments per revolution",
-// rounded up to nearest integer
-// fn minimum_resolution(width: usize, height: usize) -> usize {
-//     // We use law of cotangents to calculate the angle A. Example for a 4x4 diagram:
-//     //          C
-//     //         *
-//     //       * * B
-//     //      **
-//     //    **
-//     // A *
-//     // where sides a, b, c are opposite of the point/angle at A, B, C, respectively.
-//     // length AB = short_diagonal,
-//     // length AC = long_diagonal,
-//     // length BC = 1,
-//     // a = 2*atan(r/(s-BC)), where s = semi_perimeter, and r = inradius
-//     // we return 2*pi/a/2 + 0.5 to round up as integer
-
-//     let (width, height) = (width as f64, height as f64);
-//     let (new_width, new_height) = if width > height {
-//         (width + 1_f64, height)
-//     } else {
-//         (width, height + 1_f64)
-//     };
-
-//     let short_diagonal = (width.powi(2) + height.powi(2)).sqrt(); // pythagorean theorem
-//     let long_diagonal = (new_width.powi(2) + new_height.powi(2)).sqrt();
-//     let semi_perimeter = (short_diagonal + long_diagonal + 1_f64) / 2_f64; // + 1 for the last
-//     let inradius = ((semi_perimeter - short_diagonal)
-//         * (semi_perimeter - long_diagonal)
-//         * (semi_perimeter - 1_f64)
-//         / semi_perimeter)
-//         .sqrt();
-
-//     let angle_a = 2_f64 * (inradius / (semi_perimeter - 1_f64)).atan();
-//     (4_f64 * std::f64::consts::PI / angle_a - 0.5_f64) as usize
-//     // (10_f64 * 2_f64 * std::f64::consts::PI / angle_a + 0.5_f64) as usize
-// }
-
-// Applies the above resolution to convert the f64 to a usable, ordinally correct integer
-// fn angle_to_int(angle: f64, resolution: usize) -> usize {
-//     let out = (angle / (2_f64 * std::f64::consts::PI) * resolution as f64) as usize;
-//     if PRINT_DEBUG {
-//         println!("({})", out);
-//     }
-//     out
-// }
-
-// fn get_angle(p1: &Point, p2: &Point, resolution: usize) -> usize {
-//     let angle = (p2.y as f64 - p1.y as f64).atan2(p2.x as f64 - p1.x as f64);
-//     let angle = if angle < 0_f64 {
-//         angle + 2.0_f64 * std::f64::consts::PI
-//     } else {
-//         angle
-//     };
-
-//     if PRINT_DEBUG {
-//         let degs = (angle / 2.0_f64 / std::f64::consts::PI * 360.0_f64) as isize;
-//         print!(
-//             "angle ({},{}) -> ({},{}): {} deg ",
-//             p1.x, p1.y, p2.x, p2.y, degs
-//         );
-//     }
-
-//     angle_to_int(angle, resolution)
-// }
-
-// fn get_angle(p1: &Point, p2: &Point) -> Fraction {
-//     let angle = (p2.y as f64 - p1.y as f64).atan2(p2.x as f64 - p1.x as f64);
-//     let angle = if angle < 0_f64 {
-//         angle + 2.0_f64 * std::f64::consts::PI
-//     } else {
-//         angle
-//     };
-
-//     let angle = Fraction::from(angle);
-
-//     if PRINT_DEBUG {
-//         let degs = angle / Fraction::from(2.0_f64) / Fraction::from(std::f64::consts::PI)
-//             * Fraction::from(360.0_f64);
-//         print!(
-//             "angle ({},{}) -> ({},{}): {} deg ",
-//             p1.x, p1.y, p2.x, p2.y, degs
-//         );
-//     }
-//     angle
-// }
 
 struct Starmap {
     v: Vec<char>,
@@ -141,11 +53,11 @@ impl Starmap {
         out
     }
 
-    pub fn _destroy_comet(&mut self, p: Point) {
+    pub fn destroy_comet(&mut self, p: &Point) {
         self.v[p.y * self.w + p.x] = '.';
     }
 
-    pub fn print_highlighted_comet(&mut self, p: Point) {
+    pub fn print_highlighted_comet(&mut self, p: &Point) {
         const CL_RED: &str = "\x1B[34m";
         const CL_FG: &str = "\x1B[0m";
         for i in 0..self.w * self.h {
@@ -158,11 +70,8 @@ impl Starmap {
                 print!("{}", self.v[i]);
             }
         }
-        println!()
-    }
-
-    pub fn _get_first_comet_at_angle_from_point(&self, _p: Point, _angle: usize) -> Option<Point> {
-        None
+        println!();
+        println!("num comets: {}", self.count_comets());
     }
 }
 
@@ -210,8 +119,6 @@ fn mdist(p1: &Point, p2: &Point) -> usize {
 fn main() {
     let mut map: Starmap = Starmap::new();
     map.load_from_file("input.txt");
-    // let resolution = 10000;
-    // let resolution = minimum_resolution(map.w, map.h);
 
     let mut max_p: Point = Point { x: 0, y: 0 };
     let mut max_comets: usize = 0;
@@ -245,12 +152,12 @@ fn main() {
                         reduce(((x2 as isize) - (x1 as isize), (y2 as isize) - (y1 as isize)));
                     if PRINT_DEBUG {
                         println!(
-                            "angle ({},{}) -> ({},{}): {:?} deg",
+                            "angle ({}, {}) -> ({}, {}): {:?} deg",
                             p1.x, p1.y, p2.x, p2.y, ang
                         );
                     }
                     uniq_angs.insert(ang);
-                    angs.push((mdist(&p1, &p2), ang, (x2, y2))); // push all comets
+                    angs.push((mdist(&p1, &p2), ang, (p2.x, p2.y))); // push all comets
                 }
             }
 
@@ -270,7 +177,7 @@ fn main() {
     println!("w: {}, h: {}", map.w, map.h);
     println!("nr comets: {}", map.count_comets());
     println!(
-        "max: ({},{}) @ {} comets",
+        "max: ({}, {}) @ {} comets",
         max_p.x,
         max_p.y,
         final_uniq_angs.len()
@@ -280,31 +187,71 @@ fn main() {
 
     println!("all other comets: {:?}", final_angs);
 
-    map.print_highlighted_comet(max_p);
+    print!("Scanner station deployed at:");
+    map.print_highlighted_comet(&max_p);
 
     // Part 2
-    // let mut angle = angle_to_int(std::f64::consts::PI / 2_f64, resolution); // pi/2 = straight north
+    let mut interactive = true;
+    let num_starting_comets = map.count_comets();
 
-    // let mut x = 0;
-    // let mut y = 0;
-    // while map.count_comets() > 0 {
-    //     map.destroy_comet(Point { x: x, y: y });
+    let mut all_angles = Vec::new();
+    for (dist, (angx, angy), (posx, posy)) in final_angs {
+        let angle = (angx as f64).atan2(-angy as f64);
+        let angle = if angle < 0f64 {
+            angle + 2.0f64 * std::f64::consts::PI
+        } else {
+            angle
+        };
+        let angle = angle * 360f64 / 2.0f64 / std::f64::consts::PI;
+        let ang = (angle, (angx, angy), dist, (posx, posy), false); // last bool == is_destroyed
+        all_angles.push(ang);
+    }
 
-    //     // println!("nr comets left: {}", map.count_comets());
+    all_angles.sort_by_key(|(_, _, a, _, _)| *a); // sort by dist
+    all_angles.sort_by(|(a, _, _, _, _), (b, _, _, _, _)| a.partial_cmp(b).unwrap()); // sort by angle
 
-    //     x += 1;
-    //     if x == map.w {
-    //         x = 0;
-    //         y += 1;
-    //     }
+    for ang in &all_angles {
+        println!("{:?}", ang);
+    }
 
-    //     if y == map.h {
-    //         println!("end of map reached");
-    //     } else {
-    //     }
+    let mut last_realang = 360f64;
+    let mut i = 0;
+    while map.count_comets() > 1 {
+        if i == all_angles.len() {
+            i = 0;
+        }
+        let (realang, (_, _), _, (x, y), destroyed) = &mut all_angles[i];
+        let comet = Point { x: *x, y: *y };
+        if approx_eq!(f64, last_realang, *realang, ulps = 2) {
+            i += 1;
+            continue;
+        }
+        if *destroyed == true {
+            i += 1;
+            continue;
+        }
 
-    //     // angle = if angle == 0 { resolution } else { angle - 1 };
-    // }
+        map.print_highlighted_comet(&comet);
+        if interactive {
+            println!(
+                "Press enter to vaporize comet #{} @ {:?}",
+                num_starting_comets - map.count_comets() + 1,
+                comet
+            );
+            print!("or send RUN to exit interactive mode > ");
+            std::io::stdout().flush().ok();
+            let mut line = String::new();
+            let _input = std::io::stdin()
+                .read_line(&mut line)
+                .expect("Failed to read line");
+            if line == "RUN\n" {
+                interactive = false;
+            }
+        }
 
-    // max_comets
+        last_realang = *realang;
+        map.destroy_comet(&comet);
+        *destroyed = true;
+        i += 1;
+    }
 }
