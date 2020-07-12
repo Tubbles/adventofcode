@@ -1,13 +1,41 @@
 use regex::Regex;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::hash_set::HashSet;
 use std::fs::File;
+use std::hash::Hasher;
 use std::io::Write;
 use std::io::{BufRead, BufReader};
+extern crate ctrlc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[derive(Debug)]
 struct Body {
     name: String,
     pos: [isize; 3],
     vel: [isize; 3],
+}
+
+fn load_from_file(bodies: &mut Vec<Body>, file: &str) {
+    let re = Regex::new(r"=(-?\d+)").unwrap();
+    let f = File::open(file).expect("Unable to open file");
+    let f = BufReader::new(f);
+
+    // Scan the lines of the file
+    for line in f.lines() {
+        let line = line.expect("Unable to read line");
+        let mut caps = re.captures_iter(&line);
+
+        bodies.push(Body {
+            name: "".to_string(),
+            pos: [
+                caps.next().unwrap()[1].parse().unwrap(),
+                caps.next().unwrap()[1].parse().unwrap(),
+                caps.next().unwrap()[1].parse().unwrap(),
+            ],
+            vel: [0; 3],
+        });
+    }
 }
 
 fn simulate(bodies: &mut Vec<Body>) {
@@ -54,31 +82,22 @@ fn total_energy(body: &Body) -> usize {
     sum_abs_pos * sum_abs_vel
 }
 
+fn get_hash(bodies: &Vec<Body>, axis: usize) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for body in bodies {
+        hasher.write_isize(body.pos[axis]);
+        hasher.write_isize(body.vel[axis]);
+    }
+    hasher.finish()
+}
+
 fn main() {
-    let re = Regex::new(r"=(-?\d+)").unwrap();
     let names = ["Io", "Europa", "Ganymede", "Callisto"];
     let mut moons = Vec::new();
 
-    let f = File::open("input.txt").expect("Unable to open file");
-    let f = BufReader::new(f);
-
-    // Scan the lines of the file
-    let mut i = 0;
-    for line in f.lines() {
-        let line = line.expect("Unable to read line");
-        let mut caps = re.captures_iter(&line);
-
-        moons.push(Body {
-            name: names[i].to_string(),
-            pos: [
-                caps.next().unwrap()[1].parse().unwrap(),
-                caps.next().unwrap()[1].parse().unwrap(),
-                caps.next().unwrap()[1].parse().unwrap(),
-            ],
-            vel: [0; 3],
-        });
-
-        i += 1;
+    load_from_file(&mut moons, "input.txt");
+    for i in 0..moons.len() {
+        moons[i].name = names[i].to_string();
     }
 
     // Start the simulation
@@ -102,19 +121,95 @@ fn main() {
 
         simulate(&mut moons);
 
-        println!("Step {}:", i + 1);
-        for moon in &moons {
-            println!("{:?}, energy: {}", moon, total_energy(&moon));
+        if interactive {
+            println!("Step {}:", i + 1);
+            for moon in &moons {
+                println!("{:?}, energy: {}", moon, total_energy(&moon));
+            }
+            println!(
+                "total energy: {}",
+                total_energy(&moons[0])
+                    + total_energy(&moons[1])
+                    + total_energy(&moons[2])
+                    + total_energy(&moons[3])
+            );
+            println!("");
         }
-        println!(
-            "total energy: {}",
-            total_energy(&moons[0])
-                + total_energy(&moons[1])
-                + total_energy(&moons[2])
-                + total_energy(&moons[3])
-        );
-        println!("");
     }
+    for moon in &moons {
+        println!("{:?}, energy: {}", moon, total_energy(&moon));
+    }
+    println!(
+        "total energy: {}",
+        total_energy(&moons[0])
+            + total_energy(&moons[1])
+            + total_energy(&moons[2])
+            + total_energy(&moons[3])
+    );
+    println!("");
+
+    // Part 2
+    // We find the oscillation periods for each axis and each moon independently
+    moons = Vec::new();
+
+    load_from_file(&mut moons, "input.txt");
+    for i in 0..moons.len() {
+        moons[i].name = names[i].to_string();
+    }
+
+    let mut hashes = Vec::new();
+    for _ in 0..3 {
+        hashes.push(HashSet::new());
+    }
+
+    let mut cycles: [usize; 3] = [0; 3];
+    let mut last_cycles: [usize; 3] = [0; 3];
+    let mut i = 0;
+
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    println!("Waiting for Ctrl-C...");
+    // while running.load(Ordering::SeqCst) {
+    loop {
+        i += 1;
+        simulate(&mut moons);
+        for j in 0..3 {
+            if !hashes[j].insert(get_hash(&moons, j)) {
+                if cycles[j] == 0 {
+                    // New cycle detected
+                    cycles[j] = i - 1;
+                    last_cycles[j] = i;
+                } else {
+                    if last_cycles[j] == i - 1 {
+                        // Cycle continuation
+                        last_cycles[j] = i;
+                    } else {
+                        // Cycle broken
+                        cycles[j] = 0;
+                    }
+                }
+                // println!("Repeat in {} detected after {} iterations", j, i);
+            }
+        }
+
+        if i % 10000 == 0 {
+            println!("{}", i);
+        }
+
+        if !running.load(Ordering::SeqCst) {
+            println!("\n{} iterations, cycles: {:?}", i, cycles);
+            running.store(true, Ordering::SeqCst); // Continue iterate
+        }
+    }
+    // println!("\nRan for {} iterations, cycles: {:?}", i, cycles);
+    // println!("Repeat detected after {} iterations", i); // 4686774924
+    //                                               2782254339018719232
 }
 
 #[cfg(test)]
