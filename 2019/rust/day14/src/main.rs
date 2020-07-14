@@ -35,110 +35,6 @@ fn read_recipes_from_file(
     }
 }
 
-// fn create_chemical(
-//     recipes: &HashMap<String, (isize, Vec<(isize, String)>)>,
-//     inventory: &mut HashMap<String, isize>,
-//     // _bill: &mut HashMap<String, isize>,
-//     name: &String,
-//     amount: isize,
-//     allow_negative: bool,
-// ) -> bool // Returns whether the recipe was afforded in the inventory
-// {
-//     let entry: isize = match inventory.get(&name.to_string()) {
-//         Some(&a) => a,
-//         None => 0,
-//     };
-
-//     // Check if we can afford it directly
-//     if entry >= amount {
-//         // We have enough already in the inventory
-//         let entry_mut = inventory.entry(name.to_string()).or_insert(0);
-//         *entry_mut -= amount;
-//         return true;
-//     } else {
-//         // Check for recipe
-//         if recipes.contains_key(name) {
-//             let (output_amount, ingredients) = &recipes[name];
-//             // println!("{}({}): {:?}", name, output_amount, ingredients);
-
-//             // Get the amount needed to produce
-//             let mut times = -entry / output_amount;
-//             if times * output_amount < -entry {
-//                 times += 1;
-//             }
-//             // println!("{} times", times);
-
-//             // Check if we can afford the recipe
-//             let mut afforded = true;
-//             for (in_amount, in_name) in ingredients {
-//                 // println!("ingredient: {:?}", (in_amount, in_name));
-//                 let temp_afford = create_chemical(
-//                     recipes,
-//                     inventory,
-//                     in_name,
-//                     in_amount * times,
-//                     allow_negative,
-//                 );
-//                 if temp_afford == false {
-//                     afforded = false;
-//                 }
-//             }
-//             let entry_mut = inventory.entry(name.to_string()).or_insert(0);
-//             if afforded {
-//                 // Do the actual chemical reaction
-//                 *entry_mut += times * output_amount;
-//                 // We now have enough in the inventory
-//                 *entry_mut -= amount;
-//                 return true;
-//             } else if allow_negative {
-//                 // We create a deficit
-//                 *entry_mut -= amount;
-//                 return false;
-//             } else {
-//                 // Could not afford
-//                 return false;
-//             }
-//         } else {
-//             // No recipe found
-//             return false;
-//         }
-//     }
-// }
-
-// fn create_chemical(
-//     recipes: &HashMap<String, (isize, Vec<(isize, String)>)>,
-//     inventory: &mut HashMap<String, isize>,
-//     name: &String,
-//     amount: isize,
-// ) {
-//     // First modify our inventory
-//     let entry = inventory.entry(name.to_string()).or_insert(0);
-//     *entry -= amount;
-
-//     // Check if there was a deficit
-//     if *entry < 0 {
-//         // Check for recipe
-//         if recipes.contains_key(name) {
-//             let (output_amount, ingredients) = &recipes[name];
-//             // println!("{}({}): {:?}", name, output_amount, ingredients);
-
-//             // Check the amount - we need at least as much as the deficit
-//             let mut times = -*entry / output_amount;
-//             if times * output_amount < -*entry {
-//                 times += 1;
-//             }
-//             // println!("{} times", times);
-
-//             // Add the amount and create new deficits
-//             *entry += times * output_amount;
-//             for (in_amount, in_name) in ingredients {
-//                 // println!("ingredient: {:?}", (in_amount, in_name));
-//                 create_chemical(recipes, inventory, in_name, in_amount * times);
-//             }
-//         }
-//     }
-// }
-
 fn put_indents(indents: usize) {
     for _ in 0..indents {
         print!(" ");
@@ -234,22 +130,12 @@ fn create_chemical(
 
         // Check the amount - we need at least as much as the deficit
         let times = (amount + output_amount - 1) / output_amount;
-        // if times * output_amount < amount {
-        //     times += 1;
-        // }
         if DEBUG {
             put_indents(indent);
             println!("{} times required (total {})", times, times * output_amount);
         }
 
-        // Add the amount and create new deficits
-        // {
-        //     let entry = inventory.entry(name.to_string()).or_insert(0);
-        //     *entry += times * output_amount;
-        // }
         for (in_amount, in_name) in ingredients {
-            // Remove the ingredient list
-            // *inventory.entry(in_name.to_string()).or_insert(0) -= in_amount * times;
             if DEBUG {
                 put_indents(indent);
                 println!(
@@ -308,7 +194,6 @@ fn main() {
         println!("\n {}", files[i]);
         let mut recipes: HashMap<String, (isize, Vec<(isize, String)>)> = HashMap::new(); // output name -> (output amount, list of input amounts and names)
         read_recipes_from_file(&mut recipes, files[i]);
-        // println!("recipes: {:?}", recipes);
 
         let mut inventory: HashMap<String, isize> = HashMap::new(); // name -> current inventory
 
@@ -323,43 +208,43 @@ fn main() {
         assert!(part1_asserts[i] == -inventory.get("ORE").unwrap());
     }
 
-    // println!("  Part 2");
-    // for i in 0..files.len() {
-    //     println!("\n {}", files[i]);
-    //     let mut recipes: HashMap<String, (isize, Vec<(isize, String)>)> = HashMap::new(); // output name -> (output amount, list of input amounts and names)
-    //     read_recipes_from_file(&mut recipes, files[i]);
-    //     // println!("recipes: {:?}", recipes);
+    // For part 2 we do some kind of search thing
+    println!("  Part 2");
+    for i in 0..files.len() {
+        println!("\n {}", files[i]);
+        let ore_amount = 1_000_000_000_000; // one trillion
+        let mut fuel_amount = ore_amount / part1_asserts[i]; // lower bound
+        let mut fuel_amount_last = 0;
+        let mut delta = 1_000_000; // each time we go over our target we halve the delta and restart from last good value
 
-    //     let mut inventory: HashMap<String, isize> = HashMap::new(); // name -> current inventory
-    //     inventory.insert("ORE".to_string(), 1_000_000_000_000);
+        let mut recipes: HashMap<String, (isize, Vec<(isize, String)>)> = HashMap::new(); // output name -> (output amount, list of input amounts and names)
+        read_recipes_from_file(&mut recipes, files[i]);
 
-    //     while *inventory.get("ORE").unwrap() > 0 {
-    //         create_bill(&recipes, &mut inventory, &"FUEL".to_string(), 1_000_000);
-    //         // if *inventory.get("ORE").unwrap() % 10_000_000 == 0 {
-    //         //     println!("Ore left: {}", *inventory.get("ORE").unwrap());
-    //         // }
-    //     }
+        while delta != 0 {
+            let mut inventory: HashMap<String, isize> = HashMap::new(); // name -> current inventory
+            inventory.insert("ORE".to_string(), ore_amount);
 
-    //     println!("inventory: {:?}", inventory);
-    // }
+            create_bill(&recipes, &mut inventory, &"FUEL".to_string(), fuel_amount);
 
-    // println!("  Play area");
-    // let file = "example1.txt";
-    // println!(" {}", file);
-    // let mut recipes: HashMap<String, (isize, Vec<(isize, String)>)> = HashMap::new(); // output name -> (output amount, list of input amounts and names)
-    // read_recipes_from_file(&mut recipes, file);
-    // println!("recipes: {:?}", recipes);
+            match *inventory.get("ORE").unwrap() {
+                d if d > 0 => {
+                    fuel_amount_last = fuel_amount;
+                    fuel_amount = fuel_amount + delta;
+                }
+                d if d < 0 => {
+                    fuel_amount = fuel_amount_last;
+                    delta /= 2;
+                }
+                _ => {
+                    delta = 0;
+                }
+            };
+        }
 
-    // let mut inventory: HashMap<String, isize> = HashMap::new(); // name -> current inventory
-
-    // create_bill(&recipes, &mut inventory, &"FUEL".to_string(), 1); // Create one fuel
-    // println!("inventory: {:?}", inventory);
-
-    // create_bill(&recipes, &mut inventory, &"FUEL".to_string(), -1); // Withdraw one fuel
-    // println!("inventory: {:?}", inventory);
-
-    // create_bill(&recipes, &mut inventory, &"FUEL".to_string(), 1); // Create one fuel
-    // println!("inventory: {:?}", inventory);
-
-    // println!("ORE deficit: {}", -inventory.get("ORE").unwrap());
+        // Do a run with the correct values
+        let mut inventory: HashMap<String, isize> = HashMap::new(); // name -> current inventory
+        inventory.insert("ORE".to_string(), ore_amount);
+        create_bill(&recipes, &mut inventory, &"FUEL".to_string(), fuel_amount);
+        println!("inventory: {:?}", inventory);
+    }
 }
