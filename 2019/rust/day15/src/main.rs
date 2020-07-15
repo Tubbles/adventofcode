@@ -47,52 +47,68 @@ enum SquareType {
     Tank,
     Start,
     Dead,
+    Oxygen,
+    ToBeOxygen,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 struct Square {
     stype: SquareType,
     is_walkable: bool,
+    is_gas_penetrable: bool,
     is_quest: bool,
     display: char,
 }
 
-const SQUARES: [Square; 6] = [
+const SQUARES: [Square; 7] = [
     Square {
         stype: SquareType::Unknown,
         is_walkable: true,
+        is_gas_penetrable: true,
         is_quest: false,
         display: '?',
     },
     Square {
         stype: SquareType::Wall,
         is_walkable: false,
+        is_gas_penetrable: false,
         is_quest: false,
         display: ' ',
     },
     Square {
         stype: SquareType::Floor,
         is_walkable: true,
+        is_gas_penetrable: true,
         is_quest: false,
-        display: 'o',
+        display: '.',
     },
     Square {
         stype: SquareType::Tank,
         is_walkable: true,
+        is_gas_penetrable: true,
         is_quest: true,
         display: 'T',
     },
     Square {
         stype: SquareType::Start,
         is_walkable: true,
+        is_gas_penetrable: true,
         is_quest: true,
         display: 'S',
     },
     Square {
         stype: SquareType::Dead,
         is_walkable: false,
+        is_gas_penetrable: true,
         is_quest: false,
         display: 'x',
+    },
+    Square {
+        stype: SquareType::Oxygen,
+        is_walkable: true,
+        is_gas_penetrable: false,
+        is_quest: false,
+        display: 'O',
     },
 ];
 
@@ -134,8 +150,10 @@ struct Map {
     finished: bool,
 }
 
-fn print_map(map: &Map, droid: &Droid) {
-    println!("{:?}:", *droid.ops.front().unwrap());
+fn print_map(map: &Map, droid: Option<&Droid>) {
+    if droid.is_some() {
+        println!("{:?}:", *droid.unwrap().ops.front().unwrap());
+    }
     for _ in 0..WIDTH + 1 {
         print!("{}", FRAME_CHAR);
     }
@@ -146,7 +164,7 @@ fn print_map(map: &Map, droid: &Droid) {
         }
         print!(
             "{}",
-            if i != droid.pos {
+            if droid.is_none() || i != droid.unwrap().pos {
                 map.canvas[i].display
             } else {
                 DROID_CHAR
@@ -358,7 +376,7 @@ fn main() {
     droid.ops.push_front(Input::North);
 
     let mut iter = 0;
-    print_map(&map, &droid);
+    print_map(&map, Some(&droid));
     while !m.is_halted() {
         // Take input
         // print!("NORTH = 1, SOUTH = 2, WEST = 3, EAST = 4 ?> ");
@@ -397,13 +415,13 @@ fn main() {
         if !map.interactive {
             if iter % 1000 == 0 {
                 println!("unseen: {}", unseen);
-                print_map(&map, &droid);
+                print_map(&map, Some(&droid));
             }
             thread::sleep(Duration::from_millis(1));
         } else {
             // Take input
             println!("unseen: {}", unseen);
-            print_map(&map, &droid);
+            print_map(&map, Some(&droid));
             print!("Press enter for next move, or type RUN to exit interactive mode ?> ");
             std::io::stdout().flush().ok();
             let mut line = String::new();
@@ -425,7 +443,7 @@ fn main() {
 
         iter += 1;
         if unseen == 0 && !map.finished {
-            println!("map is completed, switching to interactive mode");
+            println!("map is completed");
             println!(
                 "distance from start to tank: {}",
                 map.canvas
@@ -436,7 +454,63 @@ fn main() {
             );
             map.interactive = true;
             map.finished = true;
+            println!("switching to part 2");
+            break;
         }
     }
-    print_map(&map, &droid);
+
+    // Convert the map into part 2
+    for square in &mut map.canvas {
+        *square = if *square == SQUARES[SquareType::Unknown as usize] {
+            SQUARES[SquareType::Wall as usize]
+        } else if *square == SQUARES[SquareType::Wall as usize] {
+            SQUARES[SquareType::Wall as usize]
+        } else if *square == SQUARES[SquareType::Tank as usize] {
+            SQUARES[SquareType::Oxygen as usize]
+        } else {
+            SQUARES[SquareType::Floor as usize]
+        }
+    }
+
+    print_map(&map, None);
+
+    fn oxygenate_once(map: &mut Map) {
+        // First mark for oxygenation
+        for i in 0..map.canvas.len() {
+            if map.canvas[i].stype == SquareType::Oxygen {
+                // Check adjacent squares
+                for dir in &[Input::North, Input::South, Input::West, Input::East] {
+                    if map.canvas[(i as isize + input_to_pos(*dir)) as usize].is_gas_penetrable
+                        == true
+                    {
+                        map.canvas[(i as isize + input_to_pos(*dir)) as usize].stype =
+                            SquareType::ToBeOxygen;
+                    }
+                }
+            }
+        }
+
+        // Then do the actual oxygenation
+        for i in 0..map.canvas.len() {
+            if map.canvas[i].stype == SquareType::ToBeOxygen {
+                map.canvas[i] = SQUARES[SquareType::Oxygen as usize];
+            }
+        }
+    }
+
+    fn count_not_oxygenated(map: &Map) -> usize {
+        map.canvas
+            .iter()
+            .filter(|&a| *a == SQUARES[SquareType::Floor as usize])
+            .count()
+    }
+
+    iter = 0;
+    while count_not_oxygenated(&map) > 0 {
+        oxygenate_once(&mut map);
+        iter += 1;
+    }
+
+    println!("oxygenation finished, minutes elapsed: {}", iter);
+    print_map(&map, None);
 }
