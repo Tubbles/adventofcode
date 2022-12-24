@@ -17,6 +17,25 @@ fn intersect_char(s: &str) -> char {
     set1.intersection(&set2).nth(0).unwrap().to_owned()
 }
 
+fn intersect_char_vec(v: &Vec<String>) -> char {
+    let (set1, set2, set3): (BTreeSet<char>, BTreeSet<char>, BTreeSet<char>) = (
+        v[0].chars().collect(),
+        v[1].chars().collect(),
+        v[2].chars().collect(),
+    );
+
+    let vec: Vec<BTreeSet<char>> = vec![set1, set2, set3];
+    vec.iter()
+        .skip(1)
+        .fold(vec[0].clone(), |acc: BTreeSet<char>, hs| {
+            acc.intersection(hs).cloned().collect()
+        })
+        .iter()
+        .nth(0)
+        .unwrap()
+        .to_owned()
+}
+
 fn main() {
     {
         // Asserts
@@ -36,9 +55,19 @@ fn main() {
     }
     {
         // Part 2
+        let mut count = 0;
+        let mut vec = Vec::new();
+        let mut points = 0;
         for line in BufReader::new(File::open("input.txt").unwrap()).lines() {
-            let _line = line.unwrap();
+            let line = line.unwrap();
+            vec.push(line);
+            count += 1;
+            if count == 3 {
+                points += char_to_points(&intersect_char_vec(&vec));
+                vec.clear();
+                count = 0;
+            }
         }
-        println!("Part 2: Ans is: {}", 0);
+        println!("Part 2: Ans is: {}", points);
     }
 }
