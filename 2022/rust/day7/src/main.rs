@@ -12,7 +12,7 @@ struct Directory {
     name: String,
     dirs: Vec<Directory>,
     files: Vec<File>,
-    size: Option<usize>,
+    // size: Option<usize>,
 }
 
 fn get_dir_from_path<'lt>(root_dir: &'lt mut Directory, path: &str) -> &'lt mut Directory {
@@ -134,6 +134,20 @@ fn get_dir_size(dir: &Directory) -> usize {
     sum
 }
 
+fn get_dirs_with_sizes_above_threshold(dir: &Directory, threshold: usize) -> Vec<Directory> {
+    let mut v = Vec::new();
+
+    for subdir in &dir.dirs {
+        v.append(&mut get_dirs_with_sizes_above_threshold(subdir, threshold));
+    }
+
+    if get_dir_size(dir) >= threshold {
+        v.push(dir.clone());
+    }
+
+    v
+}
+
 fn get_dirs_with_sizes_below_threshold(dir: &Directory, threshold: usize) -> Vec<Directory> {
     let mut v = Vec::new();
 
@@ -154,7 +168,17 @@ fn get_dir_sizes_below_threshold(dir: &Directory, threshold: usize) -> usize {
         .fold(0, |acc, x| acc + get_dir_size(x))
 }
 
+fn get_smallest_dir_size_above_threshold(dir: &Directory, threshold: usize) -> usize {
+    let mut dirs = get_dirs_with_sizes_above_threshold(&dir, threshold);
+    dirs.sort_by(|x, y| get_dir_size(x).partial_cmp(&get_dir_size(y)).unwrap());
+    // dirs.iter().for_each(|x| println!("{}", get_dir_size(x)));
+
+    get_dir_size(&dirs[0])
+}
+
 fn main() {
+    let total_space = 70000000;
+    let space_required_for_update = 30000000;
     {
         // Asserts
         let fs = build_fs("test");
@@ -162,10 +186,19 @@ fn main() {
 
         let ans = get_dir_sizes_below_threshold(&fs, 100000);
         assert_eq!(ans, 95437);
+
+        let used_space = get_dir_size(&fs);
+        let free_space = total_space - used_space;
+        let smallest_dir_size_to_delete = space_required_for_update - free_space;
+
+        let ans = get_smallest_dir_size_above_threshold(&fs, smallest_dir_size_to_delete);
+        assert_eq!(ans, 24933642);
     }
+
+    let fs = build_fs("input");
+
     {
         // Part 1
-        let fs = build_fs("input");
         // print_directory(&fs);
 
         let ans = get_dir_sizes_below_threshold(&fs, 100000);
@@ -173,11 +206,11 @@ fn main() {
     }
     {
         // Part 2
-        // for line in BufReader::new(fs::File::open("input").unwrap()).lines() {
-        //     let _line = line.unwrap();
-        // }
+        let used_space = get_dir_size(&fs);
+        let free_space = total_space - used_space;
+        let smallest_dir_size_to_delete = space_required_for_update - free_space;
 
-        let ans = 0;
+        let ans = get_smallest_dir_size_above_threshold(&fs, smallest_dir_size_to_delete);
         println!("Part 2: Ans is: {}", ans);
     }
 }
