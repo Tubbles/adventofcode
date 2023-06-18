@@ -1,0 +1,9 @@
+{
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "files.associations": {
+        "input": "plaintext",
+        "test": "plaintext",
+        "text": "plaintext",
+    },
+}
