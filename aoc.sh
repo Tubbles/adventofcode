@@ -7,8 +7,7 @@ cookie="$(cat "${cookie_file}")"
 usage="Advent of Code helper
 $(basename "$0") <year> <day>
 $(basename "$0") <year> <day> input
-$(basename "$0") <year> <day> answer <part> <answer>
-"
+$(basename "$0") <year> <day> answer <part> <answer>"
 
 year="$1"
 day="$2"
@@ -19,10 +18,9 @@ answer="$5"
 endpoint="https://adventofcode.com/${year}/day/${day}"
 flags="--cookie session=${cookie} --silent --show-error"
 
-
-if [[ "$1" == "help" ]]; then
+if [[ "$1" == "help" || "$1" == "--help" || "$1" == "-h" || "$1" == "/?" || "$1" == "?" ]]; then
     echo "${usage}"
-elif [[ "${action}" == "" ]]; then
+elif [[ -z "${action}" && -n ${year} && -n ${day} ]]; then
     # Word splitting intended
     # shellcheck disable=SC2086
     curl ${flags} "${endpoint}" | grep -A9999 "<article" | grep -B9999 "</article>" | html2text
